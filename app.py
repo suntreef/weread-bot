@@ -1,4 +1,4 @@
-import json, os
+import json, os, threading
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from apscheduler.schedulers.background import BackgroundScheduler
 from bot import start_reading
@@ -24,7 +24,7 @@ def run_job():
 def update_schedule():
     config = load_config()
     time_parts = config['schedule_time'].split(':')
-    scheduler.remove_all_jobs()
+    scheduler.remove_all_jobs() # 这里也包含了之前的修复
     scheduler.add_job(run_job, 'cron', hour=int(time_parts[0]), minute=int(time_parts[1]), id='read_job')
 
 @app.route('/')
@@ -44,8 +44,9 @@ def save():
 
 @app.route('/api/run_now', methods=['POST'])
 def run_now():
-    scheduler.add_job(run_job)
-    return jsonify({"status": "success", "message": "已在后台启动！请稍后刷新页面查看是否需要扫码。"})
+    # 使用原生线程强制立即触发，避免调度器延迟卡顿
+    threading.Thread(target=run_job).start()
+    return jsonify({"status": "success", "message": "已在后台极速启动！请等待 10-15 秒后刷新页面查看二维码。"})
 
 if __name__ == '__main__':
     os.makedirs('data', exist_ok=True)
