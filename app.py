@@ -24,7 +24,7 @@ def run_job():
 def update_schedule():
     config = load_config()
     time_parts = config['schedule_time'].split(':')
-    scheduler.removeAllJobs()
+    scheduler.remove_all_jobs()
     scheduler.add_job(run_job, 'cron', hour=int(time_parts[0]), minute=int(time_parts[1]), id='read_job')
 
 @app.route('/')
