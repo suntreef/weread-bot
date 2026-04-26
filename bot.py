@@ -22,13 +22,27 @@ def send_push(token, title, content):
         log_msg(f"⚠️ 推送失败: {e}")
 
 def get_driver():
+    # 核心修复 1：每次启动前，暴力清理可能残留的浏览器锁文件
+    lock_file = '/app/data/chrome_profile/SingletonLock'
+    if os.path.exists(lock_file):
+        try:
+            os.remove(lock_file)
+            log_msg("🧹 已清理异常残留的浏览器锁文件...")
+        except Exception as e:
+            log_msg(f"⚠️ 清理锁文件失败: {e}")
+
     chrome_options = Options()
     chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
+    # 核心修复 2：加回并强化 NAS 必备的无显卡渲染参数
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--disable-software-rasterizer") 
+    
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("user-data-dir=/app/data/chrome_profile")
     chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36")
+    
     driver = webdriver.Chrome(options=chrome_options)
     driver.set_page_load_timeout(30)
     return driver
@@ -68,12 +82,10 @@ def start_reading(book_url, reading_minutes, push_token=""):
     try:
         driver = get_driver()
         
-        # 智能书架逻辑：如果没填链接，自动去书架找书
         if not book_url or book_url.strip() == "" or "xxxxxx" in book_url:
             log_msg("🤖 未配置指定书籍，尝试从书架自动选取...")
             driver.get("https://weread.qq.com/web/shelf")
             time.sleep(5)
-            # 寻找书架上的书籍链接
             books = driver.find_elements(By.CSS_SELECTOR, "a[href^='/web/reader/']")
             if books:
                 book_url = books[0].get_attribute('href')
@@ -97,13 +109,11 @@ def start_reading(book_url, reading_minutes, push_token=""):
         log_msg(f"📖 开始拟真阅读...")
         
         while time.time() < end_time:
-            # 拟真逻辑：80%向下滚动，20%向上回滚（防风控）
             if random.random() < 0.8:
                 driver.execute_script(f"window.scrollBy(0, {random.randint(300, 700)});")
             else:
                 driver.execute_script(f"window.scrollBy(0, -{random.randint(100, 300)});")
                 
-            # 处理可能的弹窗或翻页按钮
             try:
                 next_btn = driver.find_element(By.XPATH, "//*[contains(text(), '下一章')]")
                 if next_btn.is_displayed():
