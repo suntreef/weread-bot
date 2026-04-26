@@ -19,18 +19,17 @@ def send_push(token, title, content):
         log_msg(f"⚠️ 推送失败: {e}")
 
 def check_login_and_get_qr():
-    log_msg("🔍 开始检测微信读书登录状态 (基于 Playwright 引擎)...")
+    log_msg("🔍 开始检测微信读书登录状态 (Playwright 强力引擎)...")
     qr_path = '/app/data/qrcode.png'
     try:
         with sync_playwright() as p:
-            # 启动浏览器并加载持久化配置（免扫码的核心）
             browser = p.chromium.launch_persistent_context(
                 user_data_dir=PROFILE_DIR,
                 headless=True,
                 args=["--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage"]
             )
             page = browser.new_page()
-            page.goto("https://weread.qq.com/web/shelf", timeout=30000)
+            page.goto("https://weread.qq.com/web/shelf", timeout=60000)
             page.wait_for_timeout(5000)
 
             if "扫码" in page.content() or "login" in page.url:
@@ -45,7 +44,7 @@ def check_login_and_get_qr():
                         if os.path.exists(qr_path): os.remove(qr_path)
                         break
                 else:
-                    log_msg("⌛ 扫码超时。")
+                    log_msg("⌛ 扫码超时，请重新获取。")
             else:
                 log_msg("✅ 当前已是登录状态。")
                 if os.path.exists(qr_path): os.remove(qr_path)
@@ -55,7 +54,7 @@ def check_login_and_get_qr():
         log_msg(f"❌ 检测异常: {e}")
 
 def start_reading(book_url, reading_minutes, push_token=""):
-    log_msg(f"🚀 启动阅读任务，目标: {reading_minutes} 分钟")
+    log_msg(f"🚀 启动阅读任务，目标时长: {reading_minutes} 分钟")
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch_persistent_context(
@@ -65,50 +64,49 @@ def start_reading(book_url, reading_minutes, push_token=""):
             )
             page = browser.new_page()
 
-            # 智能找书逻辑
+            # 智能书架找书
             if not book_url or book_url.strip() == "" or "xxxxxx" in book_url:
-                log_msg("🤖 尝试从书架自动选取书籍...")
-                page.goto("https://weread.qq.com/web/shelf", timeout=30000)
+                log_msg("🤖 未填链接，正在从书架自动选书...")
+                page.goto("https://weread.qq.com/web/shelf", timeout=60000)
                 page.wait_for_timeout(5000)
                 
-                # 寻找书架上的第一本书
                 books = page.query_selector_all("a[href^='/web/reader/']")
                 if books:
                     href = books[0].get_attribute('href')
                     book_url = "https://weread.qq.com" + href if href.startswith('/') else href
-                    log_msg(f"📚 自动选取书籍成功，准备阅读...")
+                    log_msg(f"📚 成功选中书架上的书籍，准备打开...")
                 else:
-                    msg = "❌ 书架为空或未登录，无法选书。"
+                    msg = "❌ 书架为空或未登录，无法自动选书。"
                     log_msg(msg)
                     send_push(push_token, "任务失败", msg)
                     browser.close()
                     return
 
-            page.goto(book_url, timeout=30000)
+            page.goto(book_url, timeout=60000)
             page.wait_for_timeout(8000)
 
             if "扫码" in page.content() or "login" in page.url:
-                msg = "⚠️ 账号登录失效，请重新获取二维码扫码。"
+                msg = "⚠️ 账号未登录或登录失效，请去控制台扫码。"
                 log_msg(msg)
                 send_push(push_token, "阅读登录失效", msg)
                 browser.close()
                 return
 
             end_time = time.time() + (reading_minutes * 60)
-            log_msg(f"📖 开始拟真阅读 (底层物理鼠标滚动模拟)...")
+            log_msg(f"📖 开始拟真阅读 (底层鼠标滚轮模拟)...")
             
             while time.time() < end_time:
-                # Playwright 独家绝技：真实模拟物理鼠标滚轮，防封号利器
+                # 滚轮防封控机制
                 if random.random() < 0.8:
                     page.mouse.wheel(0, random.randint(300, 700))
                 else:
                     page.mouse.wheel(0, -random.randint(100, 300))
                     
-                # 智能寻找并点击下一章
+                # 寻找下一章按钮
                 next_btn = page.query_selector("text='下一章'")
                 if next_btn and next_btn.is_visible():
                     next_btn.click()
-                    log_msg("翻页：进入下一章")
+                    log_msg("⏩ 翻页：自动进入下一章")
                     page.wait_for_timeout(3000)
                 
                 page.wait_for_timeout(random.uniform(5000, 15000))
