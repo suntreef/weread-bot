@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>微信读书 WebUI</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f4f5f7; display: flex; justify-content: center; padding: 40px 20px; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
+        .form-group { margin-bottom: 20px; }
+        label { font-weight: bold; display: block; margin-bottom: 8px; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { background-color: #0052cc; color: white; border: none; padding: 12px; border-radius: 6px; cursor: pointer; width: 100%; margin-bottom: 10px; }
+        .btn-run { background-color: #36b37e; }
+        #qr-section { margin-top: 20px; text-align: center; border-top: 1px solid #eee; padding-top: 20px; }
+        img { max-width: 100%; border: 1px solid #ddd; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>📚 微信读书自动化</h2>
+        {% if qr_exists %}
+        <div id="qr-section">
+            <h3 style="color: #de350b;">请使用微信扫码登录</h3>
+            <p>扫码后请刷新本页面。</p>
+            <img src="/data/qrcode.png?t={{ range(1, 10000) | random }}" alt="请扫码">
+        </div>
+        {% endif %}
+        <div class="form-group"><label>书籍链接</label><input type="text" id="book_url" value="{{ config.book_url }}"></div>
+        <div class="form-group"><label>阅读时长 (分钟)</label><input type="number" id="reading_minutes" value="{{ config.reading_minutes }}"></div>
+        <div class="form-group"><label>每日执行时间</label><input type="time" id="schedule_time" value="{{ config.schedule_time }}"></div>
+        <button onclick="saveConfig()">保存配置</button>
+        <button class="btn-run" onclick="runNow()">立即执行一次</button>
+    </div>
+    <script>
+        function saveConfig() {
+            fetch('/api/save', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ book_url: document.getElementById('book_url').value, reading_minutes: document.getElementById('reading_minutes').value, schedule_time: document.getElementById('schedule_time').value })
+            }).then(res => res.json()).then(data => alert(data.message));
+        }
+        function runNow() {
+            fetch('/api/run_now', { method: 'POST' }).then(res => res.json()).then(data => alert(data.message));
+        }
+    </script>
+</body>
+</html>
