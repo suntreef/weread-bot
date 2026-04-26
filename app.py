@@ -1,13 +1,15 @@
 import json, os, threading
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from apscheduler.schedulers.background import BackgroundScheduler
-from bot import start_reading
+from bot import start_reading, check_login_and_get_qr
 
 app = Flask(__name__)
 CONFIG_FILE = 'data/config.json'
+LOG_FILE = 'data/run.log'
 scheduler = BackgroundScheduler()
 
-default_config = {"book_url": "https://weread.qq.com/web/reader/xxxxxx", "reading_minutes": 1, "schedule_time": "08:30"}
+# 新增了 push_token 默认配置
+default_config = {"book_url": "", "reading_minutes": 1, "schedule_time": "08:30", "push_token": ""}
 
 def load_config():
     if os.path.exists(CONFIG_FILE):
@@ -19,12 +21,12 @@ def save_config(config):
 
 def run_job():
     config = load_config()
-    start_reading(config['book_url'], int(config['reading_minutes']))
+    start_reading(config.get('book_url', ''), int(config['reading_minutes']), config.get('push_token', ''))
 
 def update_schedule():
     config = load_config()
     time_parts = config['schedule_time'].split(':')
-    scheduler.remove_all_jobs() # 这里也包含了之前的修复
+    scheduler.remove_all_jobs()
     scheduler.add_job(run_job, 'cron', hour=int(time_parts[0]), minute=int(time_parts[1]), id='read_job')
 
 @app.route('/')
@@ -42,11 +44,26 @@ def save():
     update_schedule()
     return jsonify({"status": "success", "message": "配置已保存，定时任务已更新！"})
 
+@app.route('/api/check_login', methods=['POST'])
+def check_login():
+    threading.Thread(target=check_login_and_get_qr).start()
+    return jsonify({"status": "success", "message": "已触发登录检测，请查看下方日志！"})
+
 @app.route('/api/run_now', methods=['POST'])
 def run_now():
-    # 使用原生线程强制立即触发，避免调度器延迟卡顿
     threading.Thread(target=run_job).start()
-    return jsonify({"status": "success", "message": "已在后台极速启动！请等待 10-15 秒后刷新页面查看二维码。"})
+    return jsonify({"status": "success", "message": "阅读任务已启动，请查看下方日志！"})
+
+@app.route('/api/get_logs', methods=['GET'])
+def get_logs():
+    if not os.path.exists(LOG_FILE): return jsonify({"logs": "暂无日志...\n"})
+    with open(LOG_FILE, 'r', encoding='utf-8') as f: lines = f.readlines()
+    return jsonify({"logs": "".join(lines[-40:])}) # 展示最后40行
+
+@app.route('/api/clear_logs', methods=['POST'])
+def clear_logs():
+    if os.path.exists(LOG_FILE): os.remove(LOG_FILE)
+    return jsonify({"status": "success", "message": "日志已清空！"})
 
 if __name__ == '__main__':
     os.makedirs('data', exist_ok=True)
