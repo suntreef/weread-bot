@@ -1,0 +1,55 @@
+import json, os
+from flask import Flask, render_template, request, jsonify, send_from_directory
+from apscheduler.schedulers.background import BackgroundScheduler
+from bot import start_reading
+
+app = Flask(__name__)
+CONFIG_FILE = 'data/config.json'
+scheduler = BackgroundScheduler()
+
+default_config = {"book_url": "https://weread.qq.com/web/reader/xxxxxx", "reading_minutes": 1, "schedule_time": "08:30"}
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f: return json.load(f)
+    return default_config
+
+def save_config(config):
+    with open(CONFIG_FILE, 'w', encoding='utf-8') as f: json.dump(config, f, ensure_ascii=False, indent=4)
+
+def run_job():
+    config = load_config()
+    start_reading(config['book_url'], int(config['reading_minutes']))
+
+def update_schedule():
+    config = load_config()
+    time_parts = config['schedule_time'].split(':')
+    scheduler.removeAllJobs()
+    scheduler.add_job(run_job, 'cron', hour=int(time_parts[0]), minute=int(time_parts[1]), id='read_job')
+
+@app.route('/')
+def index():
+    qr_exists = os.path.exists('data/qrcode.png')
+    return render_template('index.html', config=load_config(), qr_exists=qr_exists)
+
+@app.route('/data/<path:filename>')
+def serve_data(filename):
+    return send_from_directory('data', filename)
+
+@app.route('/api/save', methods=['POST'])
+def save():
+    save_config(request.json)
+    update_schedule()
+    return jsonify({"status": "success", "message": "配置已保存，定时任务已更新！"})
+
+@app.route('/api/run_now', methods=['POST'])
+def run_now():
+    scheduler.add_job(run_job)
+    return jsonify({"status": "success", "message": "已在后台启动！请稍后刷新页面查看是否需要扫码。"})
+
+if __name__ == '__main__':
+    os.makedirs('data', exist_ok=True)
+    if not os.path.exists(CONFIG_FILE): save_config(default_config)
+    update_schedule()
+    scheduler.start()
+    app.run(host='0.0.0.0', port=3666)
