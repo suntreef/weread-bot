@@ -6,7 +6,9 @@ from bot import start_reading, check_login_and_get_qr
 app = Flask(__name__)
 CONFIG_FILE = 'data/config.json'
 LOG_FILE = 'data/run.log'
-scheduler = BackgroundScheduler()
+
+# 核心修复：强行指定时区，绕过底层 tzlocal 库的自动检测 Bug
+scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
 
 default_config = {"book_url": "", "reading_minutes": 1, "schedule_time": "08:30", "push_token": ""}
 
