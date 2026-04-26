@@ -8,7 +8,6 @@ CONFIG_FILE = 'data/config.json'
 LOG_FILE = 'data/run.log'
 scheduler = BackgroundScheduler()
 
-# 新增了 push_token 默认配置
 default_config = {"book_url": "", "reading_minutes": 1, "schedule_time": "08:30", "push_token": ""}
 
 def load_config():
@@ -58,7 +57,7 @@ def run_now():
 def get_logs():
     if not os.path.exists(LOG_FILE): return jsonify({"logs": "暂无日志...\n"})
     with open(LOG_FILE, 'r', encoding='utf-8') as f: lines = f.readlines()
-    return jsonify({"logs": "".join(lines[-40:])}) # 展示最后40行
+    return jsonify({"logs": "".join(lines[-40:])})
 
 @app.route('/api/clear_logs', methods=['POST'])
 def clear_logs():
